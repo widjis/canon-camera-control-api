@@ -1,7 +1,7 @@
 # Technical Implementation Plan
 
 ## Active Phase
-Phase 0: Documentation and contract baseline
+Phase 4: Control server integration
 
 ## Source Documents
 - `docs/project-plan.md`
@@ -33,6 +33,13 @@ Runs centrally and manages:
 - remote operator access
 
 The control server should call the edge API through a private network, VPN, reverse proxy, or tunnel initiated from the edge side. Do not expose the edge API directly to the public internet.
+
+Control-plane implementation baseline now includes:
+- device registration with per-edge bearer credentials stored server-side
+- connectivity probe jobs against edge `/v1/health` and `/v1/device`
+- orchestration jobs that lease the edge session, trigger capture, poll the edge job, and release the lease
+- audit trail storage for accepted, succeeded, and failed control actions
+- metadata-only media import from the edge into the control-plane catalog
 
 ## Edge Runtime Components
 
@@ -120,9 +127,9 @@ Do not expose raw `gphoto2` paths as the primary public contract. Keep them avai
 
 ### Control Plane
 - API server
-- relational database
-- object storage for uploaded media
-- message queue for automation workflows
+- SQLite for the first implementation, with a later path to PostgreSQL
+- object storage for uploaded media later; first implementation keeps metadata-only sync
+- message queue for automation workflows later; first implementation uses background jobs in-process
 - admin UI or client applications
 
 ## Recommended Technology Choices
@@ -140,7 +147,14 @@ Do not expose raw `gphoto2` paths as the primary public contract. Keep them avai
 - If media download fails after capture, preserve camera file when possible and report partial result
 
 ## Security Model
-- Mutual TLS or signed bearer tokens between control server and edge API
+- Signed bearer tokens between control server clients and the control API
+- Service bearer tokens between control server and edge API
 - Per-request correlation ID
 - Audit fields: actor, source, session ID, job ID
 - No shell access should be required for normal operations
+
+## Phase 4 Decisions
+- Keep runtime application config environment-driven in both services via `.env` in development and injected env vars in production
+- Keep edge bearer credentials server-side and expose only masked values in control responses
+- Default media sync policy to `metadataOnly` plus `edgeManaged` retention until binary upload is designed
+- Treat orchestration as job-based even when edge operations themselves already create jobs, so the control plane has its own audit and retry boundary

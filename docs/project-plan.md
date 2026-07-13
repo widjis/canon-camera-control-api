@@ -12,7 +12,7 @@ Direct camera control through `gphoto2` is powerful but too low-level for fleet 
 ## Primary Deliverables
 - Edge Camera API running on a mini PC or similar host
 - Control server for remote orchestration, access control, audit, and fleet management
-- OpenAPI contract for the edge API
+- OpenAPI contract for the edge and control APIs
 - Operational documentation for deployment, verification, and future implementation
 
 ## Scope For Initial Platform

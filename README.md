@@ -9,7 +9,7 @@ Camera Control is a Canon camera automation platform built around an edge API th
 
 ## Current Status
 - Canon EOS R50 has been verified locally with `gphoto2`
-- The repository now includes the first TypeScript edge API skeleton
+- The repository now includes both the TypeScript edge API and the first control server
 
 ## Development
 1. Install dependencies:
@@ -17,13 +17,23 @@ Camera Control is a Canon camera automation platform built around an edge API th
 2. Configure runtime environment:
    - copy values from `.env.example` into a local `.env`
 3. Start the edge API:
-   - `npm run dev`
-4. Build for production:
+   - `npm run dev:edge`
+4. Start the control server:
+   - `npm run dev:control`
+5. Build for production:
    - `npm run build`
-5. Run tests:
+6. Run tests:
    - `npm test`
+
+## Runtime Split
+- `src/index.ts` boots the edge API that owns camera USB access
+- `src/control-index.ts` boots the control server that registers edge nodes, probes them, orchestrates captures, and records audit logs
+- Runtime app config stays in environment variables or `.env`
+- Saved camera presets/profiles stay in SQLite on the edge node
+- Live camera config is queried from the camera when needed and is not treated as cached local truth
 
 ## Important Runtime Notes
 - Canon EOS R50 should use `Photo Import/Remote Control`
 - Wi-Fi/Bluetooth should be disabled for USB control
 - On macOS, host processes such as `icdd`, `photolibraryd`, and `PTPCamera` may need to be stopped before `gphoto2` claims the camera
+- For the first production path, prefer Linux for the edge node even though the control server remains cross-platform

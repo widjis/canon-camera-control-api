@@ -106,14 +106,20 @@
   - `docs/openapi.yaml`
   - `docs/open-questions-and-challenges.md`
 - **Checklist**:
-  - [ ] Define control-plane auth and trust model
-  - [ ] Implement device registration and connectivity strategy
-  - [ ] Implement audit logging and orchestration flows
-  - [ ] Define media upload/sync policy
-  - [ ] Keep runtime application config environment-driven in production
+  - [x] Define control-plane auth and trust model
+  - [x] Implement device registration and connectivity strategy
+  - [x] Implement audit logging and orchestration flows
+  - [x] Define media upload/sync policy
+  - [x] Keep runtime application config environment-driven in production
 - **Output**:
-  - remotely orchestrated edge node
+  - remotely orchestrated edge node with a first control server
 - **Challenge / Verification**:
-  - control server can invoke a remote capture end-to-end
-  - audit log captures the request trail
-  - `docs/openapi.yaml` reviewed and updated with any contract adjustments
+  - `npm run build` passed
+  - `npm test` passed including control-plane registration, probe, orchestration, audit-log, and media-catalog coverage
+  - automated end-to-end control-plane verification passed against a fake edge server:
+    - `POST /v1/control/devices` returned `201`
+    - `POST /v1/control/devices/{id}/probe` returned `202` and the job reached `succeeded`
+    - `POST /v1/control/devices/{id}/captures` returned `202` and the control job reached `succeeded`
+    - `GET /v1/control/audit-logs` returned accepted and succeeded orchestration events
+    - `GET /v1/control/media-assets` returned imported edge media metadata
+  - `docs/openapi.yaml` was reviewed and updated for the new control-plane contract and now parses as `OpenAPI 3.1.0 with 29 paths`

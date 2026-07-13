@@ -81,6 +81,22 @@ The edge API is the source of truth for live camera control. The control server 
   - cancelled
 - Expose job status and recent events for debugging and orchestration
 
+### 10. Control-Plane Device Registry
+- Register edge devices with a trusted base URL and service credential
+- Expose current device connectivity state from control-plane probes
+- Keep sensitive edge credentials server-side and return only masked metadata
+
+### 11. Control-Plane Orchestration And Audit
+- Allow the control server to probe an edge node before work
+- Allow the control server to lease the edge session, trigger capture, poll the edge job, and release the session
+- Record audit entries for accepted, succeeded, and failed orchestration actions
+- Persist control-plane job state separately from edge job state
+
+### 12. Media Sync Policy
+- Store a per-device media sync policy in the control plane
+- Start with metadata-only import from edge media assets into the control catalog
+- Keep binary upload/object storage as a later phase rather than pretending it already exists
+
 ## Non-Functional Requirements
 - Single-writer access to the camera
 - Stable API independent of adapter internals

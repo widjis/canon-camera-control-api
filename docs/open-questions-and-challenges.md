@@ -7,6 +7,13 @@
 4. Should the control server own user-facing auth only, with the edge API accepting service-to-service credentials exclusively?
 5. Is the first version single-camera forever, or should the edge runtime reserve room for multi-camera support soon?
 
+## Current Decisions
+- The first remote trust model uses service bearer tokens between the control server and each edge node.
+- The control API may use its own bearer token for clients and should stay on a trusted network boundary.
+- Runtime app configuration stays environment-driven in both services.
+- The first media sync policy is `metadataOnly` with `edgeManaged` retention.
+- The first production edge target remains Linux-first even though local development also works on macOS.
+
 ## Technical Challenges
 - `gphoto2` access is exclusive and sensitive to competing host processes
 - Camera capabilities vary by model and firmware

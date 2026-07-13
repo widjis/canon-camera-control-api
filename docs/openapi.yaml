@@ -1,16 +1,19 @@
 openapi: 3.1.0
 info:
-  title: Canon Camera Edge API
+  title: Canon Camera Platform API
   version: 0.1.0
-  summary: HTTP API for controlling a Canon camera from an edge device
+  summary: Edge and control-plane APIs for controlling Canon cameras
   description: |
-    This API runs on the edge device connected to a Canon camera over USB.
-    It exposes normalized camera control operations for a trusted control server.
+    This contract documents both sides of the first Canon camera automation platform:
+    - the edge API running next to the camera over USB
+    - the control API orchestrating one or more trusted edge devices
 
     Initial hardware target: Canon EOS R50 via `gphoto2` / `libgphoto2`.
 servers:
   - url: https://edge-camera.local
     description: Example private edge endpoint
+  - url: https://control-camera.local
+    description: Example private control-plane endpoint
 security:
   - bearerAuth: []
   - mutualTLS: []
@@ -25,6 +28,8 @@ tags:
   - name: Storage
   - name: Jobs
   - name: Media
+  - name: Control
+  - name: Audit
 paths:
   /v1/health:
     get:
@@ -467,6 +472,199 @@ paths:
                 $ref: '#/components/schemas/MediaAsset'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/control/health:
+    get:
+      tags: [Control]
+      summary: Get control-plane health
+      operationId: getControlHealth
+      responses:
+        '200':
+          description: Control-plane health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlHealthResponse'
+  /v1/control/devices:
+    get:
+      tags: [Control]
+      summary: List registered edge devices
+      operationId: listControlDevices
+      responses:
+        '200':
+          description: Registered edge devices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlDeviceListResponse'
+    post:
+      tags: [Control]
+      summary: Register or update a trusted edge device
+      operationId: registerControlDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterControlDeviceRequest'
+      responses:
+        '201':
+          description: Edge device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlDevice'
+  /v1/control/devices/{controlDeviceId}:
+    get:
+      tags: [Control]
+      summary: Get a registered edge device
+      operationId: getControlDevice
+      parameters:
+        - $ref: '#/components/parameters/ControlDeviceId'
+      responses:
+        '200':
+          description: Edge device details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlDevice'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/control/devices/{controlDeviceId}/probe:
+    post:
+      tags: [Control]
+      summary: Probe an edge device and refresh its connectivity status
+      operationId: probeControlDevice
+      parameters:
+        - $ref: '#/components/parameters/ControlDeviceId'
+      responses:
+        '202':
+          description: Probe accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedControlJobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/control/devices/{controlDeviceId}/media-sync-policy:
+    get:
+      tags: [Control]
+      summary: Get media sync policy for an edge device
+      operationId: getMediaSyncPolicy
+      parameters:
+        - $ref: '#/components/parameters/ControlDeviceId'
+      responses:
+        '200':
+          description: Media sync policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaSyncPolicy'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Control]
+      summary: Update media sync policy for an edge device
+      operationId: updateMediaSyncPolicy
+      parameters:
+        - $ref: '#/components/parameters/ControlDeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMediaSyncPolicyRequest'
+      responses:
+        '200':
+          description: Updated edge device with new policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlDevice'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/control/devices/{controlDeviceId}/captures:
+    post:
+      tags: [Control]
+      summary: Orchestrate a still capture through a registered edge device
+      operationId: orchestrateCapture
+      parameters:
+        - $ref: '#/components/parameters/ControlDeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '202':
+          description: Orchestration accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedControlJobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/control/jobs/{controlJobId}:
+    get:
+      tags: [Control]
+      summary: Get a control-plane orchestration job
+      operationId: getControlJob
+      parameters:
+        - $ref: '#/components/parameters/ControlJobId'
+      responses:
+        '200':
+          description: Control-plane job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlJobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/control/audit-logs:
+    get:
+      tags: [Audit]
+      summary: List control-plane audit log entries
+      operationId: listAuditLogs
+      parameters:
+        - name: deviceId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+  /v1/control/media-assets:
+    get:
+      tags: [Control]
+      summary: List media metadata imported into the control plane
+      operationId: listControlMediaAssets
+      parameters:
+        - name: deviceId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Imported media metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlMediaAssetListResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -497,8 +695,21 @@ components:
       schema:
         type: string
         format: uuid
+    ControlDeviceId:
+      name: controlDeviceId
+      in: path
+      required: true
+      schema:
+        type: string
     ProfileId:
       name: profileId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ControlJobId:
+      name: controlJobId
       in: path
       required: true
       schema:
@@ -988,3 +1199,284 @@ components:
         details:
           type: object
           additionalProperties: true
+    ControlHealthResponse:
+      type: object
+      required: [status, service, version, now]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          enum: [control]
+        version:
+          type: string
+        now:
+          type: string
+          format: date-time
+    ControlDeviceListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ControlDevice'
+    RegisterControlDeviceRequest:
+      type: object
+      required: [deviceId, name, edgeBaseUrl]
+      properties:
+        deviceId:
+          type: string
+        name:
+          type: string
+        edgeBaseUrl:
+          type: string
+          format: uri
+        edgeBearerToken:
+          type: string
+          nullable: true
+          writeOnly: true
+        mediaSyncPolicy:
+          $ref: '#/components/schemas/MediaSyncPolicy'
+        metadata:
+          type: object
+          additionalProperties: true
+    ControlDevice:
+      type: object
+      required:
+        - deviceId
+        - name
+        - edgeBaseUrl
+        - authMode
+        - status
+        - registeredAt
+        - updatedAt
+        - mediaSyncPolicy
+      properties:
+        deviceId:
+          type: string
+        name:
+          type: string
+        edgeBaseUrl:
+          type: string
+          format: uri
+        authMode:
+          type: string
+          enum: [serviceBearer]
+        edgeBearerTokenMasked:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [unknown, online, offline, error]
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        registeredAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        mediaSyncPolicy:
+          $ref: '#/components/schemas/MediaSyncPolicy'
+        metadata:
+          type: object
+          additionalProperties: true
+    MediaSyncPolicy:
+      type: object
+      required: [syncMode, retentionMode]
+      properties:
+        syncMode:
+          type: string
+          enum: [disabled, metadataOnly]
+        retentionMode:
+          type: string
+          enum: [edgeManaged, controlManaged]
+      description: |
+        The first implementation synchronizes metadata only. Binary upload is intentionally deferred.
+    UpdateMediaSyncPolicyRequest:
+      type: object
+      required: [mediaSyncPolicy]
+      properties:
+        mediaSyncPolicy:
+          $ref: '#/components/schemas/MediaSyncPolicy'
+    AcceptedControlJobResponse:
+      type: object
+      required: [jobId, status, type, deviceId]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running]
+        type:
+          type: string
+          enum: [probeDevice, orchestrateCapture]
+        deviceId:
+          type: string
+    ControlJobResponse:
+      type: object
+      required: [jobId, type, status, deviceId, createdAt]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [probeDevice, orchestrateCapture]
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        deviceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/ControlProbeResult'
+            - $ref: '#/components/schemas/ControlCaptureResult'
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/ErrorResponse'
+            - type: 'null'
+    ControlProbeResult:
+      type: object
+      required: [status, probedAt, edge]
+      properties:
+        status:
+          type: string
+          enum: [online]
+        probedAt:
+          type: string
+          format: date-time
+        edge:
+          type: object
+          properties:
+            health:
+              type: object
+              additionalProperties: true
+            device:
+              type: object
+              additionalProperties: true
+    ControlCaptureResult:
+      type: object
+      required: [edgeJobId]
+      properties:
+        edgeJobId:
+          type: string
+        edgeResult:
+          oneOf:
+            - $ref: '#/components/schemas/CaptureJobResult'
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+        importedMedia:
+          oneOf:
+            - $ref: '#/components/schemas/ControlMediaAsset'
+            - type: 'null'
+    AuditLogListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+    AuditLogEntry:
+      type: object
+      required: [auditId, actorType, actorId, action, outcome, createdAt, details]
+      properties:
+        auditId:
+          type: string
+          format: uuid
+        actorType:
+          type: string
+          enum: [controlApiClient, system]
+        actorId:
+          type: string
+        deviceId:
+          type: string
+          nullable: true
+        action:
+          type: string
+        outcome:
+          type: string
+          enum: [accepted, succeeded, failed]
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        details:
+          type: object
+          additionalProperties: true
+    ControlMediaAssetListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ControlMediaAsset'
+    ControlMediaAsset:
+      type: object
+      required:
+        - importedId
+        - deviceId
+        - edgeAssetId
+        - filename
+        - mimeType
+        - sizeBytes
+        - localPath
+        - capturedAt
+        - importedAt
+        - syncMode
+      properties:
+        importedId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+        edgeAssetId:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        localPath:
+          type: string
+        cameraPath:
+          type: string
+          nullable: true
+        sha256:
+          type: string
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+        importedAt:
+          type: string
+          format: date-time
+        syncMode:
+          type: string
+          enum: [disabled, metadataOnly]

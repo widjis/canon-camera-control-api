@@ -5,7 +5,7 @@ This project needs persistence in two places:
 - **Edge database** for operational state close to the camera
 - **Control server database** for fleet and business-level orchestration
 
-The first implementation can start with the edge schema only, but the control server schema is included here to avoid later contract drift.
+The repository now implements both an edge SQLite database and a first control-plane SQLite database.
 
 ## Edge Database (SQLite)
 
@@ -82,48 +82,57 @@ The first implementation can start with the edge schema only, but the control se
 - `value` TEXT NOT NULL
 - `updated_at` DATETIME NOT NULL
 
-## Control Server Database
+## Control Server Database (SQLite)
 
-### `edge_devices`
+### `control_devices`
 - `device_id` TEXT PRIMARY KEY
 - `name` TEXT NOT NULL
+- `edge_base_url` TEXT NOT NULL
+- `edge_bearer_token` TEXT NULL
+- `auth_mode` TEXT NOT NULL
 - `status` TEXT NOT NULL
-- `agent_version` TEXT NOT NULL
-- `last_seen_at` DATETIME NOT NULL
-- `network_address` TEXT NULL
-- `model` TEXT NULL
-- `serial_number` TEXT NULL
+- `last_seen_at` DATETIME NULL
+- `registered_at` DATETIME NOT NULL
+- `updated_at` DATETIME NOT NULL
+- `media_sync_policy_json` TEXT NOT NULL
+- `metadata_json` TEXT NULL
 
-### `device_credentials`
-- `credential_id` TEXT PRIMARY KEY
-- `device_id` TEXT NOT NULL
+### `control_jobs`
+- `job_id` TEXT PRIMARY KEY
 - `type` TEXT NOT NULL
-- `status` TEXT NOT NULL
-- `issued_at` DATETIME NOT NULL
-- `rotated_at` DATETIME NULL
-- `expires_at` DATETIME NULL
-
-### `automation_runs`
-- `run_id` TEXT PRIMARY KEY
-- `workflow_name` TEXT NOT NULL
 - `device_id` TEXT NOT NULL
 - `status` TEXT NOT NULL
-- `request_json` TEXT NOT NULL
-- `result_json` TEXT NULL
 - `created_at` DATETIME NOT NULL
 - `started_at` DATETIME NULL
 - `finished_at` DATETIME NULL
+- `result_json` TEXT NULL
+- `error_json` TEXT NULL
 
-### `audit_logs`
+### `control_audit_logs`
 - `audit_id` TEXT PRIMARY KEY
 - `actor_type` TEXT NOT NULL
 - `actor_id` TEXT NOT NULL
 - `device_id` TEXT NULL
-- `job_id` TEXT NULL
 - `action` TEXT NOT NULL
-- `request_id` TEXT NOT NULL
-- `metadata_json` TEXT NULL
+- `outcome` TEXT NOT NULL
+- `correlation_id` TEXT NULL
 - `created_at` DATETIME NOT NULL
+- `details_json` TEXT NOT NULL
+
+### `control_media_assets`
+- `imported_id` TEXT PRIMARY KEY
+- `device_id` TEXT NOT NULL
+- `edge_asset_id` TEXT NOT NULL
+- `filename` TEXT NOT NULL
+- `mime_type` TEXT NOT NULL
+- `size_bytes` INTEGER NOT NULL
+- `local_path` TEXT NOT NULL
+- `camera_path` TEXT NULL
+- `sha256` TEXT NULL
+- `captured_at` DATETIME NOT NULL
+- `imported_at` DATETIME NOT NULL
+- `sync_mode` TEXT NOT NULL
+- UNIQUE(`device_id`, `edge_asset_id`)
 
 ## Notes
 - JSON columns can be implemented as TEXT in SQLite and JSONB in PostgreSQL later

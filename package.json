@@ -9,8 +9,12 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:edge": "tsx watch src/index.ts",
+    "dev:control": "tsx watch src/control-index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "start:edge": "node dist/index.js",
+    "start:control": "node dist/control-index.js",
     "test": "node --test --import tsx test/**/*.test.ts"
   },
   "dependencies": {
