@@ -51,38 +51,52 @@
 - **Source documents**:
   - `docs/functional-specification.md`
   - `docs/technical-implementation-plan.md`
+  - `docs/integration-contracts.md`
   - `docs/openapi.yaml`
 - **Checklist**:
-  - [ ] Implement camera discovery and capability mapping
-  - [ ] Implement status and configuration read/write
-  - [ ] Normalize adapter errors into API errors
-  - [ ] Record verified Canon EOS R50 mappings
-  - [ ] Keep live config camera-sourced and avoid treating local storage as the source of truth
+  - [x] Implement camera discovery and capability mapping
+  - [x] Implement status and configuration read/write
+  - [x] Normalize adapter errors into API errors
+  - [x] Record verified Canon EOS R50 mappings
+  - [x] Keep live config camera-sourced and avoid treating local storage as the source of truth
 - **Output**:
   - working adapter behind the edge API
 - **Challenge / Verification**:
-  - Canon EOS R50 is detected through the service
-  - config read/write works for verified keys
-  - `docs/openapi.yaml` reviewed and updated with any contract adjustments
+  - `docs/integration-contracts.md` records verified Canon EOS R50 mappings and behavior
+  - direct `gphoto2` verification was completed previously for detect, summary, config listing, preview, capture, memory-card target, and `--keep` behavior
+  - service implementation now exposes status/config/update flows through the adapter
+  - `docs/openapi.yaml` reviewed and updated with profile contract changes where needed
 
 ## Phase 3 - Capture, Preview, And Media
 - **Objective**: expose preview, still capture, and file workflows.
 - **Source documents**:
   - `docs/functional-specification.md`
   - `docs/technical-implementation-plan.md`
+  - `docs/integration-contracts.md`
   - `docs/openapi.yaml`
 - **Checklist**:
-  - [ ] Implement preview endpoint
-  - [ ] Implement still capture job with download options
-  - [ ] Implement storage listing and file download
-  - [ ] Implement local media catalog
-  - [ ] Add SQLite-backed camera profiles/presets separate from live camera state
+  - [x] Implement preview endpoint
+  - [x] Implement still capture job with download options
+  - [x] Implement storage listing and file download
+  - [x] Implement local media catalog
+  - [x] Add SQLite-backed camera profiles/presets separate from live camera state
 - **Output**:
   - production-usable still capture path
 - **Challenge / Verification**:
-  - preview returns a valid image
-  - capture creates a valid JPEG and stores metadata
-  - `docs/openapi.yaml` reviewed and updated with any contract adjustments
+  - `npm run build` passed
+  - `npm test` passed including profile persistence and profile-apply job creation
+  - runtime verification passed for:
+    - `GET /v1/profiles`
+    - `POST /v1/profiles`
+    - `POST /v1/profiles/{id}/apply`
+    - `GET /v1/jobs/{id}`
+    - profile data survived service restart through SQLite persistence
+  - direct hardware evidence exists in the repository for preview and real JPEG capture:
+    - `thumb_r50-preview.jpg`
+    - `r50-capture-20260713-200527.jpg`
+    - `r50-card-20260714-043908.jpg`
+  - camera was not attached during the latest service-runtime check, so service-level happy-path capture/preview should be rerun with the camera connected
+  - `docs/openapi.yaml` was updated for new profile endpoints and job types
 
 ## Phase 4 - Control Server Integration
 - **Objective**: connect the edge Camera API to a central control plane.

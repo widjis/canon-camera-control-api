@@ -14,11 +14,13 @@ Camera Control is a Canon camera automation platform built around an edge API th
 ## Development
 1. Install dependencies:
    - `npm install`
-2. Start the edge API:
+2. Configure runtime environment:
+   - copy values from `.env.example` into a local `.env`
+3. Start the edge API:
    - `npm run dev`
-3. Build for production:
+4. Build for production:
    - `npm run build`
-4. Run tests:
+5. Run tests:
    - `npm test`
 
 ## Important Runtime Notes
