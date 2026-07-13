@@ -1,0 +1,990 @@
+openapi: 3.1.0
+info:
+  title: Canon Camera Edge API
+  version: 0.1.0
+  summary: HTTP API for controlling a Canon camera from an edge device
+  description: |
+    This API runs on the edge device connected to a Canon camera over USB.
+    It exposes normalized camera control operations for a trusted control server.
+
+    Initial hardware target: Canon EOS R50 via `gphoto2` / `libgphoto2`.
+servers:
+  - url: https://edge-camera.local
+    description: Example private edge endpoint
+security:
+  - bearerAuth: []
+  - mutualTLS: []
+tags:
+  - name: Health
+  - name: Device
+  - name: Profiles
+  - name: Sessions
+  - name: Camera
+  - name: Focus
+  - name: Capture
+  - name: Storage
+  - name: Jobs
+  - name: Media
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Get service health
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/device:
+    get:
+      tags: [Device]
+      summary: Get edge device and connected camera details
+      operationId: getDevice
+      responses:
+        '200':
+          description: Device state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+  /v1/profiles:
+    get:
+      tags: [Profiles]
+      summary: List saved camera profiles
+      operationId: listProfiles
+      responses:
+        '200':
+          description: Camera profiles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileListResponse'
+    post:
+      tags: [Profiles]
+      summary: Create a saved camera profile
+      operationId: createProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProfileRequest'
+      responses:
+        '201':
+          description: Profile created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraProfile'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/profiles/{profileId}:
+    get:
+      tags: [Profiles]
+      summary: Get a saved camera profile
+      operationId: getProfile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '200':
+          description: Saved profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraProfile'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Profiles]
+      summary: Update a saved camera profile
+      operationId: updateProfile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraProfile'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Profiles]
+      summary: Delete a saved camera profile
+      operationId: deleteProfile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '204':
+          description: Profile deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/profiles/{profileId}/apply:
+    post:
+      tags: [Profiles]
+      summary: Apply a saved camera profile to the attached camera
+      operationId: applyProfile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+        - $ref: '#/components/parameters/SessionTokenHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      responses:
+        '202':
+          description: Profile apply job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/sessions:
+    post:
+      tags: [Sessions]
+      summary: Create an exclusive camera control session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '409':
+          description: Camera already leased by another owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/sessions/{sessionId}:
+    get:
+      tags: [Sessions]
+      summary: Get session details
+      operationId: getSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Sessions]
+      summary: Release a camera control session
+      operationId: releaseSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/SessionTokenHeader'
+      responses:
+        '204':
+          description: Session released
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/camera/status:
+    get:
+      tags: [Camera]
+      summary: Get normalized camera status
+      operationId: getCameraStatus
+      responses:
+        '200':
+          description: Camera status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraStatusResponse'
+  /v1/camera/configs:
+    get:
+      tags: [Camera]
+      summary: List normalized camera configs and current values
+      operationId: listCameraConfigs
+      responses:
+        '200':
+          description: Camera configuration list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraConfigListResponse'
+  /v1/camera/configs/{key}:
+    patch:
+      tags: [Camera]
+      summary: Update a normalized camera config
+      operationId: updateCameraConfig
+      parameters:
+        - $ref: '#/components/parameters/ConfigKey'
+        - $ref: '#/components/parameters/SessionTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCameraConfigRequest'
+      responses:
+        '200':
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CameraConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/camera/preview:
+    get:
+      tags: [Camera]
+      summary: Capture a current preview frame
+      operationId: getCameraPreview
+      parameters:
+        - $ref: '#/components/parameters/SessionTokenHeader'
+      responses:
+        '200':
+          description: Preview frame
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          description: Preview not available for current camera state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/camera/focus/autofocus:
+    post:
+      tags: [Focus]
+      summary: Trigger autofocus
+      operationId: triggerAutofocus
+      parameters:
+        - $ref: '#/components/parameters/SessionTokenHeader'
+      responses:
+        '202':
+          description: Autofocus accepted as a job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/camera/focus/steps:
+    post:
+      tags: [Focus]
+      summary: Move focus by a relative number of steps
+      operationId: stepFocus
+      parameters:
+        - $ref: '#/components/parameters/SessionTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FocusStepRequest'
+      responses:
+        '202':
+          description: Focus step accepted as a job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/captures:
+    post:
+      tags: [Capture]
+      summary: Trigger a still capture job
+      operationId: createCapture
+      parameters:
+        - $ref: '#/components/parameters/SessionTokenHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '202':
+          description: Capture job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/storage/volumes:
+    get:
+      tags: [Storage]
+      summary: List storage volumes exposed by the camera
+      operationId: listStorageVolumes
+      responses:
+        '200':
+          description: Storage volumes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageVolumeListResponse'
+  /v1/storage/files:
+    get:
+      tags: [Storage]
+      summary: List files from a camera folder
+      operationId: listStorageFiles
+      parameters:
+        - name: volumeId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: folderPath
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Files in the requested folder
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageFileListResponse'
+  /v1/storage/files/download:
+    post:
+      tags: [Storage]
+      summary: Download a file from the camera to edge storage
+      operationId: downloadStorageFile
+      parameters:
+        - $ref: '#/components/parameters/SessionTokenHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadStorageFileRequest'
+      responses:
+        '202':
+          description: Download job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/storage/files/delete:
+    post:
+      tags: [Storage]
+      summary: Delete a file from camera storage
+      operationId: deleteStorageFile
+      parameters:
+        - $ref: '#/components/parameters/SessionTokenHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteStorageFileRequest'
+      responses:
+        '202':
+          description: Delete job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/jobs/{jobId}:
+    get:
+      tags: [Jobs]
+      summary: Get a job by ID
+      operationId: getJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/media/{assetId}:
+    get:
+      tags: [Media]
+      summary: Get metadata for a locally stored media asset
+      operationId: getMediaAsset
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Media asset metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    mutualTLS:
+      type: mutualTLS
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConfigKey:
+      name: key
+      in: path
+      required: true
+      schema:
+        type: string
+        example: iso
+    SessionTokenHeader:
+      name: X-Session-Token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Lease token returned when the session was created
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Client-supplied key for safely retrying mutating operations
+  responses:
+    Unauthorized:
+      description: Request is missing or using an invalid session/auth token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Request conflicts with current camera or session state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, agentVersion, time]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        agentVersion:
+          type: string
+        time:
+          type: string
+          format: date-time
+    DeviceResponse:
+      type: object
+      required: [deviceId, agentVersion, connectionState, capabilities, camera]
+      properties:
+        deviceId:
+          type: string
+        agentVersion:
+          type: string
+        connectionState:
+          type: string
+          enum: [disconnected, detecting, ready, busy, error]
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum:
+              - stillCapture
+              - previewCapture
+              - movieRecording
+              - autofocus
+              - manualFocusStep
+              - configRead
+              - configWrite
+              - storageList
+              - fileDownload
+              - fileDelete
+        camera:
+          $ref: '#/components/schemas/CameraIdentity'
+    CameraIdentity:
+      type: object
+      required: [connected]
+      properties:
+        connected:
+          type: boolean
+        manufacturer:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        serialNumber:
+          type: string
+          nullable: true
+        firmwareVersion:
+          type: string
+          nullable: true
+    CreateSessionRequest:
+      type: object
+      required: [ownerType, ownerId, leaseSeconds]
+      properties:
+        ownerType:
+          type: string
+          enum: [controlServer, operator, automation]
+        ownerId:
+          type: string
+        leaseSeconds:
+          type: integer
+          minimum: 15
+          maximum: 3600
+        metadata:
+          type: object
+          additionalProperties: true
+    SessionResponse:
+      type: object
+      required: [sessionId, leaseToken, ownerType, ownerId, status, createdAt, expiresAt]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        leaseToken:
+          type: string
+        ownerType:
+          type: string
+        ownerId:
+          type: string
+        status:
+          type: string
+          enum: [active, released, expired]
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    ProfileListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CameraProfile'
+    CreateProfileRequest:
+      type: object
+      required: [name, settings]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        settings:
+          $ref: '#/components/schemas/ProfileSettings'
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        settings:
+          $ref: '#/components/schemas/ProfileSettings'
+    CameraProfile:
+      type: object
+      required: [profileId, name, settings, createdAt, updatedAt]
+      properties:
+        profileId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        settings:
+          $ref: '#/components/schemas/ProfileSettings'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastAppliedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ProfileSettings:
+      type: object
+      additionalProperties:
+        oneOf:
+          - type: string
+          - type: integer
+          - type: number
+          - type: boolean
+    CameraStatusResponse:
+      type: object
+      required:
+        - connectionState
+        - batteryLevel
+        - storage
+        - settings
+      properties:
+        connectionState:
+          type: string
+          enum: [disconnected, detecting, ready, busy, error]
+        batteryLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+        lensName:
+          type: string
+          nullable: true
+        availableShots:
+          type: integer
+          nullable: true
+        storage:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageVolume'
+        settings:
+          type: array
+          items:
+            $ref: '#/components/schemas/CameraConfig'
+    CameraConfigListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CameraConfig'
+    CameraConfig:
+      type: object
+      required: [key, label, type, writable, supported, value]
+      properties:
+        key:
+          type: string
+          example: captureTarget
+        label:
+          type: string
+        type:
+          type: string
+          enum: [toggle, enum, text, integer, float]
+        writable:
+          type: boolean
+        supported:
+          type: boolean
+        value:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: number
+            - type: boolean
+            - type: 'null'
+        choices:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
+        rawPath:
+          type: string
+          nullable: true
+          description: Internal adapter mapping exposed for diagnostics only
+    UpdateCameraConfigRequest:
+      type: object
+      required: [value]
+      properties:
+        value:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: number
+            - type: boolean
+    FocusStepRequest:
+      type: object
+      required: [direction, steps]
+      properties:
+        direction:
+          type: string
+          enum: [near, far]
+        steps:
+          type: integer
+          minimum: 1
+          maximum: 10
+    CaptureRequest:
+      type: object
+      required: [captureTarget, downloadToEdge, keepOnCamera]
+      properties:
+        captureTarget:
+          type: string
+          enum: [internalRam, memoryCard]
+        downloadToEdge:
+          type: boolean
+        keepOnCamera:
+          type: boolean
+        filenameTemplate:
+          type: string
+          description: Optional template for the local file name if downloadToEdge is true
+        metadata:
+          type: object
+          additionalProperties: true
+      description: |
+        If `downloadToEdge` is false, the captured file remains only on the camera target.
+        If `downloadToEdge` is true and `keepOnCamera` is false, the edge runtime may remove the
+        camera copy after successful download depending on adapter behavior.
+    DownloadStorageFileRequest:
+      type: object
+      required: [cameraPath]
+      properties:
+        cameraPath:
+          type: string
+          example: /store_00020001/DCIM/100CANON/IMG_0246.JPG
+        keepOnCamera:
+          type: boolean
+          default: true
+        filenameTemplate:
+          type: string
+          nullable: true
+    DeleteStorageFileRequest:
+      type: object
+      required: [cameraPath]
+      properties:
+        cameraPath:
+          type: string
+    AcceptedJobResponse:
+      type: object
+      required: [jobId, status, type]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running]
+        type:
+          type: string
+          enum: [autofocus, focusStep, captureStill, downloadFile, deleteFile, applyProfile]
+    JobResponse:
+      type: object
+      required: [jobId, type, status, createdAt]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [autofocus, focusStep, captureStill, downloadFile, deleteFile, applyProfile]
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/CaptureJobResult'
+            - $ref: '#/components/schemas/DownloadJobResult'
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/ErrorResponse'
+            - type: 'null'
+    CaptureJobResult:
+      type: object
+      properties:
+        cameraPath:
+          type: string
+          nullable: true
+        asset:
+          oneOf:
+            - $ref: '#/components/schemas/MediaAsset'
+            - type: 'null'
+        storedOnCamera:
+          type: boolean
+        storedLocally:
+          type: boolean
+    DownloadJobResult:
+      type: object
+      required: [asset]
+      properties:
+        asset:
+          $ref: '#/components/schemas/MediaAsset'
+    StorageVolumeListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageVolume'
+    StorageVolume:
+      type: object
+      required: [id, description, access, fileSystemType, totalBytes, freeBytes]
+      properties:
+        id:
+          type: string
+          example: store_00020001
+        description:
+          type: string
+        access:
+          type: string
+          enum: [readOnly, readWrite]
+        fileSystemType:
+          type: string
+        totalBytes:
+          type: integer
+        freeBytes:
+          type: integer
+    StorageFileListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageFile'
+    StorageFile:
+      type: object
+      required: [cameraPath, name, sizeBytes]
+      properties:
+        cameraPath:
+          type: string
+        name:
+          type: string
+        sizeBytes:
+          type: integer
+        capturedAt:
+          type: string
+          format: date-time
+          nullable: true
+    MediaAsset:
+      type: object
+      required: [assetId, filename, mimeType, sizeBytes, createdAt]
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        localPath:
+          type: string
+        cameraPath:
+          type: string
+          nullable: true
+        sha256:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: CAMERA_BUSY
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
