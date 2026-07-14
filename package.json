@@ -11,6 +11,7 @@
     "dev": "tsx watch src/index.ts",
     "dev:edge": "tsx watch src/index.ts",
     "dev:control": "tsx watch src/control-index.ts",
+    "dev:all": "concurrently -n edge,control -c blue,green \"npm:dev:edge\" \"npm:dev:control\"",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "start:edge": "node dist/index.js",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.15",
+    "concurrently": "^9.1.2",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2"
   }
