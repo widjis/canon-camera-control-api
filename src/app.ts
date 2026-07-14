@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import type { AppConfig } from "./config.js";
 import { AppError, toErrorResponse } from "./errors.js";
@@ -523,6 +524,31 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
       });
     }
     return asset;
+  });
+
+  app.get("/v1/media/:assetId/content", async (request, reply) => {
+    const params = request.params as { assetId: string };
+    const asset = media.get(params.assetId);
+    if (!asset) {
+      throw new AppError(404, {
+        code: "MEDIA_NOT_FOUND",
+        message: "The requested media asset was not found."
+      });
+    }
+
+    let content: Buffer;
+    try {
+      content = await fs.readFile(asset.localPath);
+    } catch {
+      throw new AppError(404, {
+        code: "MEDIA_FILE_MISSING",
+        message: "The media asset record exists but its file is no longer available on disk."
+      });
+    }
+
+    reply.type(asset.mimeType);
+    reply.header("Content-Disposition", `inline; filename="${encodeURIComponent(asset.filename)}"`);
+    return content;
   });
 
   app.get("/", async (_request, reply) => {

@@ -472,6 +472,27 @@ paths:
                 $ref: '#/components/schemas/MediaAsset'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/media/{assetId}/content:
+    get:
+      tags: [Media]
+      summary: Download the raw bytes of a locally stored media asset
+      operationId: getMediaAssetContent
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Media asset file content, served with the asset's stored mimeType
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Media asset record not found, or its file is no longer present on disk
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/control/health:
     get:
       tags: [Control]

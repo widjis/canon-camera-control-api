@@ -202,7 +202,14 @@ export class GPhoto2Service {
     const previewStem = path.join(this.config.mediaDir, `preview-${crypto.randomUUID()}.jpg`);
     const expectedThumb = path.join(path.dirname(previewStem), `thumb_${path.basename(previewStem)}`);
 
-    await this.run(["--force-overwrite", "--capture-preview", "--filename", previewStem]);
+    // gphoto2 derives the "thumb_" filename by splitting on "/" only, so a
+    // Windows backslash path (path.join's default here) is never recognized
+    // as having a directory component and the prefix lands on the whole
+    // string instead of just the basename. Forward slashes are accepted by
+    // gphoto2 for file writes on both platforms, so normalize before passing
+    // this through as the --filename argument.
+    const gphoto2Filename = previewStem.split(path.sep).join("/");
+    await this.run(["--force-overwrite", "--capture-preview", "--filename", gphoto2Filename]);
 
     const actualPath = await this.findExistingPath([previewStem, expectedThumb]);
     if (!actualPath) {
@@ -255,7 +262,7 @@ export class GPhoto2Service {
     if (!options.downloadToEdge) {
       const output = await this.run(["--capture-image"]);
       return {
-        cameraPath: firstMatch(output, /New file is in location (.+)$/m),
+        cameraPath: firstMatch(output, /New file is in location (\S+)/),
         asset: null,
         storedOnCamera: true,
         storedLocally: false
@@ -272,7 +279,7 @@ export class GPhoto2Service {
       targetPath
     ]);
 
-    const cameraPath = firstMatch(output, /New file is in location (.+)$/m);
+    const cameraPath = firstMatch(output, /New file is in location (\S+)/);
     const actualLocalPath = firstMatch(output, /Saving file as (.+)$/m) ?? targetPath;
     const asset = await this.buildMediaAsset(actualLocalPath, cameraPath);
 
@@ -567,7 +574,26 @@ export class GPhoto2Service {
     };
   }
 
-  private async run(args: string[], options?: { prepareHost?: boolean }): Promise<string> {
+  // gphoto2/libusb needs exclusive access to the PTP device -- two `gphoto2`
+  // processes talking to the same camera at once (e.g. a preview poll
+  // in-flight when a capture job starts, since captures run in a detached
+  // background job rather than being awaited by their request handler) fail
+  // with a raw USB I/O error, not a clean gphoto2 error message. Every call
+  // funnels through here, so queuing them into a strict FIFO chain guarantees
+  // at most one `gphoto2` child process is ever running, regardless of which
+  // public method (capturePreview, captureStill, ...) issued the call.
+  private queue: Promise<unknown> = Promise.resolve();
+
+  private run(args: string[], options?: { prepareHost?: boolean }): Promise<string> {
+    const task = this.queue.then(() => this.runExclusive(args, options));
+    this.queue = task.then(
+      () => undefined,
+      () => undefined
+    );
+    return task;
+  }
+
+  private async runExclusive(args: string[], options?: { prepareHost?: boolean }): Promise<string> {
     if ((options?.prepareHost ?? true) !== false) {
       await this.prepareHost();
     }
