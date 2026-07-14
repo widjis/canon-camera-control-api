@@ -24,6 +24,11 @@ Camera Control is a Canon camera automation platform built around an edge API th
    - `npm run build`
 6. Run tests:
    - `npm test`
+7. Or run both services with Docker:
+   - local/dev (no camera passthrough): `docker compose up -d --build`
+   - production Linux edge host (with camera passthrough): `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+   - edge API: `http://localhost:30000`, control server: `http://localhost:40000`
+   - see `docs/deployment-and-environment.md` for volumes, ports, health checks, and why USB passthrough is a separate override file
 
 ## Runtime Split
 - `src/index.ts` boots the edge API that owns camera USB access

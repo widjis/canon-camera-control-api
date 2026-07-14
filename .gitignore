@@ -1,5 +1,6 @@
 node_modules/
 dist/
 data/
+control-data/
 *.log
 .env

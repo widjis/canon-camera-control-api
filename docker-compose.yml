@@ -1,0 +1,66 @@
+services:
+  edge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: camera-control-edge
+    container_name: camera-control-edge
+    command: ["node", "dist/index.js"]
+    ports:
+      - "30000:30000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "30000"
+      DEVICE_ID: edge-camera-01
+      DATA_DIR: /app/data
+      DATABASE_PATH: /app/data/edge.sqlite
+      MEDIA_DIR: /app/data/media
+      PREPARE_DARWIN_PROCESSES: "0"
+      # Optional: set API_BEARER_TOKEN in a .env file next to this compose file
+      # to require Bearer auth. Left unset/blank, the edge API stays open, matching
+      # src/config.ts (requireBearerAuth is only true when a token is present).
+      API_BEARER_TOKEN: ${API_BEARER_TOKEN:-}
+    volumes:
+      - edge_data:/app/data
+    # USB passthrough for the physically attached Canon camera is added by
+    # docker-compose.prod.yml (Linux-only). See docs/deployment-and-environment.md.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:30000/v1/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  control:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: camera-control-control
+    container_name: camera-control-control
+    command: ["node", "dist/control-index.js"]
+    ports:
+      - "40000:40000"
+    environment:
+      CONTROL_HOST: 0.0.0.0
+      CONTROL_PORT: "40000"
+      CONTROL_DATA_DIR: /app/control-data
+      CONTROL_DATABASE_PATH: /app/control-data/control.sqlite
+      CONTROL_JOB_POLL_INTERVAL_MS: "500"
+      CONTROL_JOB_POLL_TIMEOUT_MS: "60000"
+      # Optional: set CONTROL_API_BEARER_TOKEN in a .env file next to this compose
+      # file to require Bearer auth. Left unset/blank, the control API stays open.
+      CONTROL_API_BEARER_TOKEN: ${CONTROL_API_BEARER_TOKEN:-}
+    volumes:
+      - control_data:/app/control-data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:40000/v1/control/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  edge_data:
+  control_data:

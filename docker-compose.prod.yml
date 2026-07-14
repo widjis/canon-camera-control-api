@@ -1,0 +1,4 @@
+services:
+  edge:
+    devices:
+      - /dev/bus/usb:/dev/bus/usb

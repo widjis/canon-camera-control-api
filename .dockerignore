@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+control-data
+.git
+.env
+*.jpg
+*.log
+npm-debug.log*
