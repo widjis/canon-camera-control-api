@@ -18,6 +18,7 @@ security:
   - bearerAuth: []
   - mutualTLS: []
 tags:
+  - name: Docs
   - name: Health
   - name: Device
   - name: Profiles
@@ -31,6 +32,37 @@ tags:
   - name: Control
   - name: Audit
 paths:
+  /openapi.yaml:
+    get:
+      tags: [Docs]
+      summary: Get the OpenAPI contract served by the current runtime
+      description: Returns the platform OpenAPI document as YAML from whichever service you are connected to.
+      operationId: getOpenApiDocument
+      security: []
+      responses:
+        '200':
+          description: OpenAPI YAML document
+          content:
+            application/yaml:
+              schema:
+                type: string
+            text/yaml:
+              schema:
+                type: string
+  /docs:
+    get:
+      tags: [Docs]
+      summary: Open a Swagger UI view for the current runtime
+      description: Returns an HTML page that loads Swagger UI and points it at `/openapi.yaml` on the same service.
+      operationId: getSwaggerUi
+      security: []
+      responses:
+        '200':
+          description: Swagger UI HTML page
+          content:
+            text/html:
+              schema:
+                type: string
   /v1/health:
     get:
       tags: [Health]

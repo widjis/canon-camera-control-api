@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { readOpenApiDocument, renderSwaggerUiPage } from "./api-docs.js";
 import type { AppConfig } from "./config.js";
 import { HttpEdgeClient, type EdgeClient } from "./control-client.js";
 import { ControlStore } from "./control-stores.js";
@@ -15,6 +16,15 @@ import type { ErrorPayload } from "./types.js";
 interface ControlAppDependencies {
   edgeClient?: EdgeClient;
   store?: ControlStore;
+}
+
+function isPublicDocumentationRoute(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  const pathname = url.split("?", 1)[0];
+  return pathname === "/docs" || pathname === "/openapi.yaml";
 }
 
 function readBearerToken(request: FastifyRequest): string | null {
@@ -128,6 +138,10 @@ export function createControlApp(config: AppConfig, overrides: ControlAppDepende
   const edgeClient = overrides.edgeClient ?? new HttpEdgeClient({ pollTimeoutMs: config.controlJobPollTimeoutMs });
 
   app.addHook("onRequest", async (request) => {
+    if (isPublicDocumentationRoute(request.raw.url)) {
+      return;
+    }
+
     if (!config.controlRequireBearerAuth) {
       return;
     }
@@ -145,6 +159,20 @@ export function createControlApp(config: AppConfig, overrides: ControlAppDepende
     const { statusCode, payload } = toErrorResponse(error);
     request.log.error({ err: error, statusCode, code: payload.code }, payload.message);
     reply.status(statusCode).send(payload);
+  });
+
+  app.get("/openapi.yaml", async (_request, reply) => {
+    const document = await readOpenApiDocument();
+    reply.type("application/yaml; charset=utf-8").send(document);
+  });
+
+  app.get("/docs", async (_request, reply) => {
+    reply
+      .type("text/html; charset=utf-8")
+      .send(renderSwaggerUiPage({
+        title: "Canon Camera Platform API Docs",
+        specUrl: "/openapi.yaml"
+      }));
   });
 
   app.get("/v1/control/health", async () => ({

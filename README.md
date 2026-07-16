@@ -30,6 +30,18 @@ Camera Control is a Canon camera automation platform built around an edge API th
    - edge API: `http://localhost:30000`, control server: `http://localhost:40000`
    - see `docs/deployment-and-environment.md` for volumes, ports, health checks, and why USB passthrough is a separate override file
 
+## Helper Scripts
+- `scripts/test-gphoto2-camera.sh`: low-level `gphoto2` visibility and compatibility checks on the edge host
+- `scripts/test_capture.py`: edge API capture helper that can:
+  - create and release a camera session automatically
+  - apply one or more camera config values with repeatable `--set key=value`
+  - trigger still capture to `internalRam` or `memoryCard`
+  - choose whether the image is downloaded to the edge and/or kept on the camera
+  - optionally download the resulting image from the edge API to your local machine
+
+Example:
+- `python scripts/test_capture.py --edge-base-url http://10.60.20.196:3000 --set iso=100 --set aperture=6.3 --download-local-dir downloads`
+
 ## Runtime Split
 - `src/index.ts` boots the edge API that owns camera USB access
 - `src/control-index.ts` boots the control server that registers edge nodes, probes them, orchestrates captures, and records audit logs

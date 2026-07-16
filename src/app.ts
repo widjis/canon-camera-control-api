@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { readOpenApiDocument, renderSwaggerUiPage } from "./api-docs.js";
 import type { AppConfig } from "./config.js";
 import { AppError, toErrorResponse } from "./errors.js";
 import { GPhoto2Service } from "./gphoto2.js";
@@ -12,6 +13,15 @@ interface AppDependencies {
   jobs?: JobStore;
   media?: MediaStore;
   profiles?: ProfileStore;
+}
+
+function isPublicDocumentationRoute(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  const pathname = url.split("?", 1)[0];
+  return pathname === "/docs" || pathname === "/openapi.yaml";
 }
 
 function readBearerToken(request: FastifyRequest): string | null {
@@ -210,6 +220,10 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
   const profiles = overrides.profiles ?? new ProfileStore(sqlite);
 
   app.addHook("onRequest", async (request) => {
+    if (isPublicDocumentationRoute(request.raw.url)) {
+      return;
+    }
+
     if (!config.requireBearerAuth) {
       return;
     }
@@ -227,6 +241,20 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
     const { statusCode, payload } = toErrorResponse(error);
     request.log.error({ err: error, statusCode, code: payload.code }, payload.message);
     reply.status(statusCode).send(payload);
+  });
+
+  app.get("/openapi.yaml", async (_request, reply) => {
+    const document = await readOpenApiDocument();
+    reply.type("application/yaml; charset=utf-8").send(document);
+  });
+
+  app.get("/docs", async (_request, reply) => {
+    reply
+      .type("text/html; charset=utf-8")
+      .send(renderSwaggerUiPage({
+        title: "Canon Camera Platform API Docs",
+        specUrl: "/openapi.yaml"
+      }));
   });
 
   app.get("/v1/health", async () => gphoto2.getHealth());

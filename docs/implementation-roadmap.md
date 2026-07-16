@@ -129,3 +129,8 @@
     - `GET /v1/control/audit-logs` returned accepted and succeeded orchestration events
     - `GET /v1/control/media-assets` returned imported edge media metadata
   - `docs/openapi.yaml` was reviewed and updated for the new control-plane contract and now parses as `OpenAPI 3.1.0 with 29 paths`
+  - post-completion addition (2026-07-16): added public documentation endpoints on both runtimes:
+    - `GET /openapi.yaml` serves the repository OpenAPI contract as YAML
+    - `GET /docs` serves a Swagger UI page pointing at the local `/openapi.yaml`
+    - the docs routes intentionally bypass bearer auth so operators can inspect the contract and authorize inside Swagger UI even when the runtime API itself is protected
+    - `npm run build` and `npm test` passed with new coverage for edge/control docs endpoints and auth bypass behavior

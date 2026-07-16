@@ -182,3 +182,38 @@ test("control server registers devices, probes them, and orchestrates capture", 
   await app.close();
   await edge.app.close();
 });
+
+test("control documentation endpoints expose swagger ui and raw openapi without control bearer auth", async () => {
+  const config = await createTestConfig();
+  config.controlRequireBearerAuth = true;
+  config.controlBearerToken = "control-secret";
+  const app = createControlApp(config);
+
+  const docs = await app.inject({
+    method: "GET",
+    url: "/docs"
+  });
+
+  const openapi = await app.inject({
+    method: "GET",
+    url: "/openapi.yaml"
+  });
+
+  const protectedHealth = await app.inject({
+    method: "GET",
+    url: "/v1/control/health"
+  });
+
+  assert.equal(docs.statusCode, 200);
+  assert.match(docs.headers["content-type"] ?? "", /^text\/html/);
+  assert.match(docs.body, /SwaggerUIBundle/);
+  assert.match(docs.body, /\/openapi\.yaml/);
+
+  assert.equal(openapi.statusCode, 200);
+  assert.match(openapi.headers["content-type"] ?? "", /^application\/yaml/);
+  assert.match(openapi.body, /^openapi:\s+3\.1\.0/m);
+
+  assert.equal(protectedHealth.statusCode, 401);
+
+  await app.close();
+});
