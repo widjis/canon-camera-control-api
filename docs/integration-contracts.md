@@ -57,6 +57,13 @@ The following behavior has been verified locally against a Canon EOS R50 using `
 - Fixed in `capturePreview()` (`src/gphoto2.ts`) by normalizing the generated path to forward slashes before passing it as gphoto2's `--filename` argument; the local `fs` lookups for the resulting file are unaffected since Node accepts both separator styles on Windows. `path.sep` is already `/` on Linux/macOS, so this is a no-op there.
 - Verified live against the Canon EOS R50 on this device after the fix: 5 consecutive `GET /v1/camera/preview` calls all returned `200` with a valid ~200KB, 960x640 JPEG; average latency was **~1.0-1.2 seconds per call** (each call is a real `gphoto2 --capture-preview` USB round trip — there is no continuous/streamed preview, matching the "no high-frame-rate video streaming" scope decision in `docs/project-plan.md`).
 
+### Verified Behavior — Basic Zone Exposure Modes Reject PC Capture
+
+- With the Canon EOS R50's mode dial on a "basic zone" mode (Scene Intelligent Auto and the scene presets — Green/Creative Auto/Night Portrait/Sports/Portrait/Landscape/Closeup/Flash Off/Movie), a PC-triggered shutter release over PTP fails with `PTP Device Busy (0x2019)`; the camera will not full-press remotely in these modes regardless of any other setting.
+- The "creative zone" modes (P/Tv/Av/M/…) allow PC-triggered capture normally.
+- `autoexposuremode` (`/main/capturesettings/autoexposuremode`) is writable over PTP on this body, so `captureStill()` now calls a best-effort `ensureCapturableMode()` before every capture: if the current mode is one of the blocked basic-zone modes, it switches to Program (`P`) first. Any creative-zone mode the operator already selected is left untouched. If the mode read/write itself fails, capture proceeds anyway and surfaces whatever error `gphoto2` actually returns.
+- This is a body-level PTP restriction, not something the API can validate around — it's the same class of issue as the `gphoto2` concurrent-access I/O error, in that the failure only shows up under a specific device state that isn't obvious from the request alone.
+
 ## Platform Contract
 - Production edge runtime target: Linux-first
 - Control-plane services can remain platform-agnostic

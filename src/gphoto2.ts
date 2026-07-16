@@ -248,6 +248,40 @@ export class GPhoto2Service {
     await this.run(["--set-config", `/main/actions/manualfocusdrive=${targetChoice}`]);
   }
 
+  // Canon "basic zone" modes (Scene Intelligent Auto and the scene presets)
+  // reject a PC-triggered shutter release with "PTP Device Busy (0x2019)" — the
+  // camera simply will not full-press over USB while the mode dial is on Auto.
+  // The creative zone (P/Tv/Av/M/…) allows it. autoexposuremode is writable over
+  // PTP on the EOS bodies we target, so bump a blocked mode up to Program (P)
+  // right before a capture; leave any creative mode the operator picked alone.
+  private static readonly BLOCKED_EXPOSURE_MODES = new Set([
+    "Auto",
+    "Green",
+    "Creative Auto",
+    "Night Portrait",
+    "Sports",
+    "Portrait",
+    "Landscape",
+    "Closeup",
+    "Flash Off",
+    "Movie"
+  ]);
+
+  private async ensureCapturableMode(): Promise<void> {
+    try {
+      const mode = await this.readRawConfig("/main/capturesettings/autoexposuremode");
+      if (
+        mode.supported &&
+        typeof mode.value === "string" &&
+        GPhoto2Service.BLOCKED_EXPOSURE_MODES.has(mode.value)
+      ) {
+        await this.run(["--set-config", "/main/capturesettings/autoexposuremode=P"]);
+      }
+    } catch {
+      // Best effort — if this fails the capture below will surface the real error.
+    }
+  }
+
   async captureStill(options: {
     captureTarget: "internalRam" | "memoryCard";
     downloadToEdge: boolean;
@@ -256,6 +290,7 @@ export class GPhoto2Service {
   }): Promise<{ cameraPath: string | null; asset: MediaAsset | null; storedOnCamera: boolean; storedLocally: boolean }> {
     const captureTargetValue = options.captureTarget === "memoryCard" ? "Memory card" : "Internal RAM";
 
+    await this.ensureCapturableMode();
     await this.run(["--set-config", `/main/settings/capturetarget=${captureTargetValue}`]);
     await this.run(["--set-config", "/main/settings/capture=1"]);
 
