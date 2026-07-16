@@ -312,6 +312,14 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
     return session;
   });
 
+  app.post("/v1/sessions/:sessionId/renew", async (request) => {
+    const params = request.params as { sessionId: string };
+    const body = (request.body && typeof request.body === "object" ? request.body : {}) as Record<string, unknown>;
+    const raw = typeof body.leaseSeconds === "number" ? body.leaseSeconds : 120;
+    const leaseSeconds = Math.min(3600, Math.max(15, raw));
+    return sessions.renew(params.sessionId, readSessionToken(request), leaseSeconds);
+  });
+
   app.delete("/v1/sessions/:sessionId", async (request, reply) => {
     const params = request.params as { sessionId: string };
     sessions.release(params.sessionId, readSessionToken(request));

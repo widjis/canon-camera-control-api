@@ -212,6 +212,44 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/sessions/{sessionId}/renew:
+    post:
+      tags: [Sessions]
+      summary: Extend an active session's lease
+      description: A lease is fixed at creation and is not refreshed by activity; long-lived clients (e.g. continuous preview polling) must call this periodically to avoid the session expiring mid-use.
+      operationId: renewSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/SessionTokenHeader'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leaseSeconds:
+                  type: integer
+                  minimum: 15
+                  maximum: 3600
+                  default: 120
+      responses:
+        '200':
+          description: Session renewed with a new expiry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Session is no longer active and cannot be renewed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/camera/status:
     get:
       tags: [Camera]

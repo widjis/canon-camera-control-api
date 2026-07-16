@@ -230,6 +230,35 @@ export class SessionStore {
     this.store.db.prepare("UPDATE camera_sessions SET status = 'released' WHERE session_id = ?").run(sessionId);
   }
 
+  // Extend an active lease. A lease is fixed at creation and is NOT refreshed by
+  // activity, so a long-lived client (e.g. a capture station previewing
+  // continuously) must call this periodically or its session expires mid-use.
+  renew(sessionId: string, token: string, leaseSeconds: number): SessionRecord {
+    const session = this.get(sessionId);
+    if (!session) {
+      throw new AppError(404, {
+        code: "SESSION_NOT_FOUND",
+        message: "The requested session was not found."
+      });
+    }
+    if (session.leaseToken !== token) {
+      throw new AppError(401, {
+        code: "INVALID_SESSION",
+        message: "A valid X-Session-Token is required."
+      });
+    }
+    if (session.status !== "active") {
+      throw new AppError(409, {
+        code: "SESSION_EXPIRED",
+        message: "The session is no longer active and cannot be renewed."
+      });
+    }
+
+    const expiresAt = new Date(Date.now() + leaseSeconds * 1000).toISOString();
+    this.store.db.prepare("UPDATE camera_sessions SET expires_at = ? WHERE session_id = ?").run(expiresAt, sessionId);
+    return { ...session, expiresAt };
+  }
+
   private mapSession(row: SessionRow): SessionRecord {
     return {
       sessionId: row.session_id,
