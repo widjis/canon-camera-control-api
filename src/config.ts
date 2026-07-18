@@ -9,6 +9,14 @@ export interface AppConfig {
   dataDir: string;
   databasePath: string;
   mediaDir: string;
+  // Root folder captures get copied into by POST /v1/media/:assetId/export --
+  // a plant network share (UNC path), typically. This process needs OS-level
+  // write access to it (mapped drive / SMB permissions), which is unrelated
+  // to and unblocked by anything in-browser -- that's the whole reason this
+  // export step lives here instead of in the browser's own File System
+  // Access API, which can never write anywhere without a user gesture.
+  // Unset (null) means the export endpoint is simply not available.
+  networkSaveRoot: string | null;
   requireBearerAuth: boolean;
   bearerToken: string | null;
   prepareDarwinProcesses: boolean;
@@ -37,6 +45,7 @@ export function getConfig(): AppConfig {
     dataDir,
     databasePath: process.env.DATABASE_PATH ?? path.join(dataDir, "edge.sqlite"),
     mediaDir: process.env.MEDIA_DIR ?? path.join(dataDir, "media"),
+    networkSaveRoot: process.env.NETWORK_SAVE_ROOT?.trim() || null,
     requireBearerAuth: Boolean(bearerToken),
     bearerToken,
     prepareDarwinProcesses: process.env.PREPARE_DARWIN_PROCESSES !== "0",

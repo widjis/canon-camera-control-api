@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { readOpenApiDocument, renderSwaggerUiPage } from "./api-docs.js";
 import type { AppConfig } from "./config.js";
@@ -97,6 +98,37 @@ function asRecord(body: unknown): Record<string, unknown> {
     });
   }
   return body as Record<string, unknown>;
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Same collision policy as the browser's own resolveUniqueName (capture.tsx):
+// never silently overwrite an existing file at the target path -- append
+// " (2)", " (3)", ... until a free name is found. This device is the only
+// party with real visibility into what's already on the network share, so
+// the browser can't do this check itself the way it does for a locally
+// picked folder.
+async function resolveUniqueExportPath(targetPath: string): Promise<string> {
+  if (!(await pathExists(targetPath))) {
+    return targetPath;
+  }
+  const dir = path.dirname(targetPath);
+  const ext = path.extname(targetPath);
+  const base = path.basename(targetPath, ext);
+  for (let i = 2; i < 1000; i++) {
+    const candidate = path.join(dir, `${base} (${i})${ext}`);
+    if (!(await pathExists(candidate))) {
+      return candidate;
+    }
+  }
+  return path.join(dir, `${base} ${Date.now()}${ext}`);
 }
 
 async function runJob(
@@ -585,6 +617,76 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
     reply.type(asset.mimeType);
     reply.header("Content-Disposition", `inline; filename="${encodeURIComponent(asset.filename)}"`);
     return content;
+  });
+
+  // Copies an already-downloaded asset to NETWORK_SAVE_ROOT (a plant network
+  // share, typically). This runs as a plain Node fs write on this device --
+  // no browser permission prompt is possible or needed, which is the whole
+  // point: the browser's File System Access API can only ever write after a
+  // user clicks through a picker, every single time a new handle is needed,
+  // by design (W3C security requirement, not something any app can route
+  // around client-side). Doing the write here instead is what makes a fully
+  // hands-off save to a fixed path actually possible.
+  app.post("/v1/media/:assetId/export", async (request) => {
+    sessions.requireActiveToken(readSessionToken(request));
+
+    if (!config.networkSaveRoot) {
+      throw new AppError(409, {
+        code: "NETWORK_SAVE_NOT_CONFIGURED",
+        message: "NETWORK_SAVE_ROOT is not configured on this edge device."
+      });
+    }
+
+    const params = request.params as { assetId: string };
+    const asset = media.get(params.assetId);
+    if (!asset) {
+      throw new AppError(404, {
+        code: "MEDIA_NOT_FOUND",
+        message: "The requested media asset was not found."
+      });
+    }
+
+    const body = asRecord(request.body);
+    const relativePath = body.relativePath;
+    if (typeof relativePath !== "string" || relativePath.length === 0) {
+      throw new AppError(400, {
+        code: "INVALID_REQUEST",
+        message: "relativePath is required."
+      });
+    }
+
+    // relativePath is caller-supplied (the browser sends its Year/Month/Day/
+    // filename), and it's about to be joined onto a real filesystem root --
+    // reject anything that could escape networkSaveRoot before it's used.
+    const normalized = path.normalize(relativePath);
+    if (path.isAbsolute(normalized) || normalized.split(/[\\/]+/).includes("..")) {
+      throw new AppError(400, {
+        code: "INVALID_REQUEST",
+        message: "relativePath must be a relative path with no '..' segments."
+      });
+    }
+    const resolvedRoot = path.resolve(config.networkSaveRoot);
+    const resolvedTarget = path.resolve(resolvedRoot, normalized);
+    if (resolvedTarget !== resolvedRoot && !resolvedTarget.startsWith(resolvedRoot + path.sep)) {
+      throw new AppError(400, {
+        code: "INVALID_REQUEST",
+        message: "relativePath resolves outside the configured network save root."
+      });
+    }
+
+    let finalTarget: string;
+    try {
+      await fs.mkdir(path.dirname(resolvedTarget), { recursive: true });
+      finalTarget = await resolveUniqueExportPath(resolvedTarget);
+      await fs.copyFile(asset.localPath, finalTarget);
+    } catch (error) {
+      throw new AppError(502, {
+        code: "NETWORK_SAVE_FAILED",
+        message: error instanceof Error ? error.message : "Failed to write to the network save root."
+      });
+    }
+
+    return { assetId: asset.assetId, savedTo: finalTarget, filename: path.basename(finalTarget) };
   });
 
   app.get("/", async (_request, reply) => {
