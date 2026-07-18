@@ -619,23 +619,21 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
     return content;
   });
 
-  // Copies an already-downloaded asset to NETWORK_SAVE_ROOT (a plant network
-  // share, typically). This runs as a plain Node fs write on this device --
-  // no browser permission prompt is possible or needed, which is the whole
-  // point: the browser's File System Access API can only ever write after a
-  // user clicks through a picker, every single time a new handle is needed,
-  // by design (W3C security requirement, not something any app can route
-  // around client-side). Doing the write here instead is what makes a fully
-  // hands-off save to a fixed path actually possible.
+  // Copies an already-downloaded asset to a caller-supplied targetRoot (a
+  // plant network share, typically). This runs as a plain Node fs write on
+  // this device -- no browser permission prompt is possible or needed, which
+  // is the whole point: the browser's File System Access API can only ever
+  // write after a user clicks through a picker, every single time a new
+  // handle is needed, by design (W3C security requirement, not something any
+  // app can route around client-side). Doing the write here instead is what
+  // makes a fully hands-off save to a fixed path actually possible.
+  //
+  // targetRoot itself is not configured on this device -- the caller (the app
+  // server, never the browser directly) owns that setting and sends it with
+  // every request, so changing the destination folder never requires
+  // touching or redeploying this edge device.
   app.post("/v1/media/:assetId/export", async (request) => {
     sessions.requireActiveToken(readSessionToken(request));
-
-    if (!config.networkSaveRoot) {
-      throw new AppError(409, {
-        code: "NETWORK_SAVE_NOT_CONFIGURED",
-        message: "NETWORK_SAVE_ROOT is not configured on this edge device."
-      });
-    }
 
     const params = request.params as { assetId: string };
     const asset = media.get(params.assetId);
@@ -647,6 +645,13 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
     }
 
     const body = asRecord(request.body);
+    const targetRoot = body.targetRoot;
+    if (typeof targetRoot !== "string" || targetRoot.length === 0) {
+      throw new AppError(400, {
+        code: "INVALID_REQUEST",
+        message: "targetRoot is required."
+      });
+    }
     const relativePath = body.relativePath;
     if (typeof relativePath !== "string" || relativePath.length === 0) {
       throw new AppError(400, {
@@ -657,7 +662,7 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
 
     // relativePath is caller-supplied (the browser sends its Year/Month/Day/
     // filename), and it's about to be joined onto a real filesystem root --
-    // reject anything that could escape networkSaveRoot before it's used.
+    // reject anything that could escape targetRoot before it's used.
     const normalized = path.normalize(relativePath);
     if (path.isAbsolute(normalized) || normalized.split(/[\\/]+/).includes("..")) {
       throw new AppError(400, {
@@ -665,12 +670,12 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
         message: "relativePath must be a relative path with no '..' segments."
       });
     }
-    const resolvedRoot = path.resolve(config.networkSaveRoot);
+    const resolvedRoot = path.resolve(targetRoot);
     const resolvedTarget = path.resolve(resolvedRoot, normalized);
     if (resolvedTarget !== resolvedRoot && !resolvedTarget.startsWith(resolvedRoot + path.sep)) {
       throw new AppError(400, {
         code: "INVALID_REQUEST",
-        message: "relativePath resolves outside the configured network save root."
+        message: "relativePath resolves outside targetRoot."
       });
     }
 
