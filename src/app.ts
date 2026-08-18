@@ -100,6 +100,26 @@ function asRecord(body: unknown): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
+// Separator char codes, written numerically so no escaping games are needed.
+const PATH_SEPARATOR_CODES = [92, 47]; // backslash, forward slash
+
+// True for a root like \host\share that lost one of its leading backslashes, or a
+// POSIX-style /mnt/... handed to a Windows host. path.isAbsolute() accepts both,
+// but path.resolve() then anchors them to the CURRENT DRIVE -- so an export
+// silently lands on the edge's own C: drive and still answers 200, while the
+// operator believes the capture reached the network share.
+// `platform` is injectable so the Windows-only branch stays testable from a
+// Linux CI run, where process.platform would short-circuit every case.
+export function isDriveRelativePath(
+  value: string,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (platform !== "win32") return false;
+  const first = PATH_SEPARATOR_CODES.includes(value.charCodeAt(0));
+  const second = PATH_SEPARATOR_CODES.includes(value.charCodeAt(1));
+  return first && !second;
+}
+
 async function pathExists(target: string): Promise<boolean> {
   try {
     await fs.access(target);
@@ -650,6 +670,18 @@ export function createApp(config: AppConfig, overrides: AppDependencies = {}): F
       throw new AppError(400, {
         code: "INVALID_REQUEST",
         message: "targetRoot is required."
+      });
+    }
+
+    // Guard the ROOT itself, not just relativePath: a targetRoot that is
+    // relative, or drive-relative on Windows, resolves somewhere on the edge's
+    // own disk instead of the intended share. Failing loudly here beats writing
+    // gigabytes of captures to C: while every response still says 200.
+    if (!path.isAbsolute(targetRoot) || isDriveRelativePath(targetRoot)) {
+      throw new AppError(400, {
+        code: "INVALID_REQUEST",
+        message:
+          "targetRoot must be an absolute path; a UNC path needs two leading backslashes."
       });
     }
     const relativePath = body.relativePath;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createApp } from "../src/app.js";
+import { createApp, isDriveRelativePath } from "../src/app.js";
 import { getConfig } from "../src/config.js";
 import type { GPhoto2Service } from "../src/gphoto2.js";
 
@@ -272,4 +272,23 @@ test("profile apply creates a job when a session is active", async () => {
   assert.equal(apply.json().type, "applyProfile");
 
   await app.close();
+});
+
+test("drive-relative roots are rejected so exports cannot land on the edge disk", () => {
+  // A UNC root that lost one leading backslash still passes path.isAbsolute()
+  // on Windows, but resolves against the current drive -- the export would
+  // silently write to C: and still answer 200. These are the exact shapes seen
+  // in production config.
+  const unc = "\\\\10.1.1.44\\Data Analytics\\ML\\MTI";
+  const uncMissingSlash = "\\10.1.1.44\\Data Analytics";
+
+  assert.equal(isDriveRelativePath(unc, "win32"), false);
+  assert.equal(isDriveRelativePath(uncMissingSlash, "win32"), true);
+  assert.equal(isDriveRelativePath("C:\\captures", "win32"), false);
+  assert.equal(isDriveRelativePath("/mnt/apps", "win32"), true);
+  assert.equal(isDriveRelativePath("captures", "win32"), false);
+
+  // On a Linux edge a leading slash is the correct absolute form, so the
+  // Windows-only rule must not fire there.
+  assert.equal(isDriveRelativePath("/mnt/apps", "linux"), false);
 });
