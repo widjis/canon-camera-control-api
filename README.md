@@ -53,4 +53,5 @@ Example:
 - Canon EOS R50 should use `Photo Import/Remote Control`
 - Wi-Fi/Bluetooth should be disabled for USB control
 - On macOS, host processes such as `icdd`, `photolibraryd`, and `PTPCamera` may need to be stopped before `gphoto2` claims the camera
+- On Windows, `gphoto2` isn't natively packaged — see `docs/windows-gphoto2-setup.md` for installing it via MSYS2/MinGW64 for local development
 - For the first production path, prefer Linux for the edge node even though the control server remains cross-platform
