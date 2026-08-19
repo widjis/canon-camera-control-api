@@ -64,3 +64,12 @@
 - Deploy to the real Linux edge node with both files layered: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
 - Verified on this development machine (Windows, Docker Desktop): the base compose file builds, starts, and reports both services `healthy` on ports `30000`/`40000`; adding the `devices` mapping directly (without the override split) fails Docker Desktop with `error gathering device information ... no such file or directory`, confirming the override approach is required for cross-platform development against a production-bound compose setup
 - Real camera capture through the `edge` container itself has not yet been verified end-to-end on a native Linux Docker host — do that check before relying on the container in production
+
+## Native Ubuntu Edge Node (No Docker)
+
+- The full step-by-step procedure (packages, service user, udev, systemd units, share mount, troubleshooting) lives in `README.md` under "Ubuntu Edge Node Deployment"; this section records only the decisions behind it
+- Native is preferred over Docker on the host that physically owns the camera: `gphoto2` runs as a fresh process per command, so no long-lived USB handle exists and replugging the camera does not require a service restart, whereas a container `/dev/bus/usb` mapping can go stale when the device node changes
+- A desktop session on the edge host is an operational hazard: `gvfs-gphoto2-volume-monitor` auto-mounts PTP cameras and blocks `gphoto2` from claiming the device; `prepareHost` in `src/gphoto2.ts` only handles the macOS equivalents, and it could not kill a gvfs process owned by the desktop user anyway, so this is resolved at the OS level (prefer `multi-user.target`)
+- USB access for a headless service user is not covered by group membership alone when the shipped libgphoto2 udev rules use `TAG+="uaccess"`, which grants an ACL to the active graphical session; a dedicated rule granting group access is required
+- systemd units run `node dist/*.js` directly rather than `npm run start:*`, so SIGTERM reaches Node without npm and a shell in between, and they set an explicit `PATH` because the code invokes the bare `gphoto2` binary
+- The network export endpoint needs the target share mounted at an absolute POSIX path (UNC is Windows-only); `targetRoot` stays caller-owned, so moving hosts changes the caller configuration and not this codebase
