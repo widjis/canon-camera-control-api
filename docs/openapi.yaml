@@ -87,6 +87,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeviceResponse'
+        '502':
+          $ref: '#/components/responses/CameraCommandFailed'
   /v1/profiles:
     get:
       tags: [Profiles]
@@ -842,6 +844,16 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     Conflict:
       description: Request conflicts with current camera or session state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    CameraCommandFailed:
+      description: >-
+        A gphoto2 command against the attached camera failed (code
+        CAMERA_COMMAND_FAILED). The edge service itself is healthy -- the
+        message carries the underlying gphoto2 stderr. Any endpoint that talks
+        to the camera can return this.
       content:
         application/json:
           schema:

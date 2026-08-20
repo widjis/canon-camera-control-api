@@ -644,7 +644,12 @@ export class GPhoto2Service {
             ? error.message
             : "gphoto2 execution failed";
 
-      throw new AppError(409, {
+      // 502, not 409: the edge itself is healthy -- its upstream (the camera,
+      // reached through gphoto2) is what failed. 409 Conflict reads as a state
+      // clash such as a session already held, which sent us hunting the wrong
+      // problem when a plain `gphoto2 --auto-detect` failure surfaced on
+      // GET /v1/device. Mirrors the NETWORK_SAVE_FAILED precedent in app.ts.
+      throw new AppError(502, {
         code: "CAMERA_COMMAND_FAILED",
         message,
         details: {
